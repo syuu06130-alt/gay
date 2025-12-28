@@ -1,53 +1,44 @@
--- // 限定Script UI - クールな黒デザイン //
--- 使い方：LocalScriptとしてScreenGui内に配置
+-- Auto Clicker GUI for Roblox
+-- 黒いクールなデザイン with ドラッグ & 最小化機能
 
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
--- ScreenGui作成（既にあれば使い回し）
-local ScreenGui = script.Parent
-if not ScreenGui:IsA("ScreenGui") then
-    ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Parent = PlayerGui
-    script.Parent = ScreenGui
-end
+-- ScreenGui作成
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoClickerGui"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
--- メインフレーム
+-- メインフレーム（クールな黒デザイン）
 local MainFrame = Instance.new("Frame")
-MainFrame.Name = "CheaterUI"
-MainFrame.Size = UDim2.new(0, 360, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -250)
+MainFrame.Size = UDim2.new(0, 320, 0, 400)
+MainFrame.Position = UDim2.new(0.5, -160, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BorderSizePixel = 0
-MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
+
+-- 影効果
+local Shadow = Instance.new("ImageLabel")
+Shadow.Name = "Shadow"
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0, -15, 0, -15)
+Shadow.Size = UDim2.new(1, 30, 1, 30)
+Shadow.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.5
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+Shadow.Parent = MainFrame
 
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = UDim.new(0, 12)
 MainCorner.Parent = MainFrame
 
-local Shadow = Instance.new("Frame")
-Shadow.Name = "Shadow"
-Shadow.Size = UDim2.new(1, 12, 1, 12)
-Shadow.Position = UDim2.new(0, -6, 0, -6)
-Shadow.BackgroundTransparency = 0.5
-Shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-Shadow.ZIndex = MainFrame.ZIndex - 1
-Shadow.Parent = MainFrame
-
-local ShadowCorner = Instance.new("UICorner")
-ShadowCorner.CornerRadius = UDim.new(0, 14)
-ShadowCorner.Parent = Shadow
-
 -- タイトルバー
 local TitleBar = Instance.new("Frame")
-TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, 45)
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
 TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 TitleBar.BorderSizePixel = 0
 TitleBar.Parent = MainFrame
@@ -56,170 +47,245 @@ local TitleCorner = Instance.new("UICorner")
 TitleCorner.CornerRadius = UDim.new(0, 12)
 TitleCorner.Parent = TitleBar
 
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, -100, 1, 0)
-TitleLabel.Position = UDim2.new(0, 15, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "限定チェイター"
-TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
-TitleLabel.Font = Enum.Font.GothamBlack
-TitleLabel.TextSize = 18
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Parent = TitleBar
+-- タイトル
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -80, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "🎮 Auto Clicker Pro"
+Title.TextColor3 = Color3.fromRGB(0, 255, 200)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
 
 -- 最小化ボタン
 local MinimizeBtn = Instance.new("TextButton")
 MinimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-MinimizeBtn.Position = UDim2.new(1, -70, 0, 8)
+MinimizeBtn.Position = UDim2.new(1, -70, 0, 5)
 MinimizeBtn.Text = "−"
 MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 MinimizeBtn.TextColor3 = Color3.new(1, 1, 1)
 MinimizeBtn.Font = Enum.Font.GothamBold
-MinimizeBtn.TextSize = 20
-MinimizeBtn.BorderSizePixel = 0
+MinimizeBtn.TextSize = 18
 MinimizeBtn.Parent = TitleBar
 
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = UDim.new(0, 8)
-MinCorner.Parent = MinimizeBtn
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 8)
+MinimizeCorner.Parent = MinimizeBtn
 
 -- 閉じるボタン
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-CloseBtn.Position = UDim2.new(1, -35, 0, 8)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
 CloseBtn.Text = "×"
-CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
 CloseBtn.TextColor3 = Color3.new(1, 1, 1)
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
-CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = TitleBar
 
 local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = UDim.new(0, 8)
 CloseCorner.Parent = CloseBtn
 
--- コンテンツエリア（スクロール対応）
-local ContentFrame = Instance.new("ScrollingFrame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -60)
-ContentFrame.Position = UDim2.new(0, 10, 0, 50)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.ScrollBarThickness = 6
-ContentFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 60)
-ContentFrame.CanvasSize = UDim2.new(0, 0, 0, 800) -- 後で調整
-ContentFrame.Parent = MainFrame
+-- スクロールフレーム
+local ScrollFrame = Instance.new("ScrollingFrame")
+ScrollFrame.Size = UDim2.new(1, -20, 1, -60)
+ScrollFrame.Position = UDim2.new(0, 10, 0, 50)
+ScrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ScrollFrame.BorderSizePixel = 0
+ScrollFrame.ScrollBarThickness = 6
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 500)
+ScrollFrame.Parent = MainFrame
 
+local ScrollCorner = Instance.new("UICorner")
+ScrollCorner.CornerRadius = UDim.new(0, 8)
+ScrollCorner.Parent = ScrollFrame
+
+-- UIListLayout
 local ListLayout = Instance.new("UIListLayout")
 ListLayout.Padding = UDim.new(0, 10)
-ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = ContentFrame
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+ListLayout.Parent = ScrollFrame
 
--- ここから機能ボタンを追加（例）--
--- 例: 無限マネー
-local function createButton(name, callback)
-    local Btn = Instance.new("TextButton")
-    Btn.Size = UDim2.new(1, -20, 0, 50)
-    Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    Btn.Text = name
-    Btn.TextColor3 = Color3.fromRGB(220, 220, 255)
-    Btn.Font = Enum.Font.GothamSemibold
-    Btn.TextSize = 16
-    Btn.BorderSizePixel = 0
-    Btn.Parent = ContentFrame
+-- パディング
+local Padding = Instance.new("UIPadding")
+Padding.PaddingTop = UDim.new(0, 10)
+Padding.PaddingBottom = UDim.new(0, 10)
+Padding.Parent = ScrollFrame
 
+-- ボタン作成関数
+local function CreateToggleButton(name, defaultState)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0, 280, 0, 45)
+    Button.BackgroundColor3 = defaultState and Color3.fromRGB(30, 150, 100) or Color3.fromRGB(40, 40, 40)
+    Button.Text = name .. ": " .. (defaultState and "ON" or "OFF")
+    Button.TextColor3 = Color3.new(1, 1, 1)
+    Button.Font = Enum.Font.GothamBold
+    Button.TextSize = 14
+    Button.Parent = ScrollFrame
+    
     local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 10)
-    BtnCorner.Parent = Btn
-
-    Btn.MouseButton1Click:Connect(callback)
-
-    -- ホバーエフェクト
-    Btn.MouseEnter:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(55, 55, 75)}):Play()
-    end)
-    Btn.MouseLeave:Connect(function()
-        TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 45)}):Play()
-    end)
-
-    return Btn
+    BtnCorner.CornerRadius = UDim.new(0, 8)
+    BtnCorner.Parent = Button
+    
+    return Button
 end
 
--- 例の機能（元のゲームのClickMoneyイベントを連打）
-createButton("💰 マネー連打 (ClickMoney)", function()
-    spawn(function()
-        while true do
-            game:GetService("ReplicatedStorage").Events.ClickMoney:FireServer()
-            task.wait() -- できるだけ高速
-        end
-    end)
-    print("マネー連打開始")
-end)
+-- 状態変数
+local autoClickEnabled = false
+local autoFarmEnabled = false
+local clickSpeed = 0.1
 
-createButton("⚠️ 全機能有効化 (危険)", function()
-    -- 元スクリプトにある大量のEnabled = true を実行
-    -- 注意：ゲームによってはアンチチートで検知される可能性あり
-    notify("全機能有効化は自己責任で！")
-end)
+-- Auto Click ボタン
+local AutoClickBtn = CreateToggleButton("Auto Click Money", false)
 
-createButton("🌙 UIを閉じる", function()
-    MainFrame.Visible = false
-end)
+-- Auto Farm ボタン
+local AutoFarmBtn = CreateToggleButton("Auto Farm All", false)
 
--- CanvasSize自動調整
-ListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ContentFrame.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y + 20)
-end)
+-- Speed設定
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(0, 280, 0, 30)
+SpeedLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+SpeedLabel.Text = "Click Speed: " .. clickSpeed .. "s"
+SpeedLabel.TextColor3 = Color3.fromRGB(0, 255, 200)
+SpeedLabel.Font = Enum.Font.Gotham
+SpeedLabel.TextSize = 13
+SpeedLabel.Parent = ScrollFrame
+
+local SpeedCorner = Instance.new("UICorner")
+SpeedCorner.CornerRadius = UDim.new(0, 8)
+SpeedCorner.Parent = SpeedLabel
+
+-- 速度調整ボタン
+local SpeedUpBtn = CreateToggleButton("Speed +", false)
+local SpeedDownBtn = CreateToggleButton("Speed -", false)
+
+-- 統計情報
+local StatsLabel = Instance.new("TextLabel")
+StatsLabel.Size = UDim2.new(0, 280, 0, 60)
+StatsLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+StatsLabel.Text = "Clicks: 0\nStatus: Idle"
+StatsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatsLabel.Font = Enum.Font.Gotham
+StatsLabel.TextSize = 12
+StatsLabel.Parent = ScrollFrame
+
+local StatsCorner = Instance.new("UICorner")
+StatsCorner.CornerRadius = UDim.new(0, 8)
+StatsCorner.Parent = StatsLabel
 
 -- ドラッグ機能
 local dragging = false
-local dragInput, dragStart, startPos
+local dragInput, mousePos, framePos
 
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
-        dragStart = input.Position
-        startPos = MainFrame.Position
-
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
+        mousePos = input.Position
+        framePos = MainFrame.Position
     end
 end)
 
 TitleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+TitleBar.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - mousePos
+        MainFrame.Position = UDim2.new(
+            framePos.X.Scale,
+            framePos.X.Offset + delta.X,
+            framePos.Y.Scale,
+            framePos.Y.Offset + delta.Y
+        )
     end
 end)
 
 -- 最小化機能
 local minimized = false
+local originalSize = MainFrame.Size
+
 MinimizeBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 360, 0, 45)}):Play()
+        MainFrame:TweenSize(UDim2.new(0, 320, 0, 40), "Out", "Quad", 0.3, true)
         MinimizeBtn.Text = "+"
     else
-        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 360, 0, 500)}):Play()
+        MainFrame:TweenSize(originalSize, "Out", "Quad", 0.3, true)
         MinimizeBtn.Text = "−"
     end
 end)
 
--- 閉じる
+-- 閉じる機能
 CloseBtn.MouseButton1Click:Connect(function()
-    TweenService:Create(MainFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
-    TweenService:Create(TitleBar, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
-    task.wait(0.3)
-    MainFrame:Destroy()
+    ScreenGui:Destroy()
 end)
 
--- ホバー時のボタンエフェクト
-CloseBtn.MouseEnter:Connect(function() CloseBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60) end)
-CloseBtn.MouseLeave:Connect(function() CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40) end)
-MinimizeBtn.MouseEnter:Connect(function() MinimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end)
-MinimizeBtn.MouseLeave:Connect(function() MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40) end)
+-- Auto Click機能
+local clickCount = 0
 
-print("限定チェイターUI 読み込み完了")
+AutoClickBtn.MouseButton1Click:Connect(function()
+    autoClickEnabled = not autoClickEnabled
+    AutoClickBtn.BackgroundColor3 = autoClickEnabled and Color3.fromRGB(30, 150, 100) or Color3.fromRGB(40, 40, 40)
+    AutoClickBtn.Text = "Auto Click Money: " .. (autoClickEnabled and "ON" or "OFF")
+end)
+
+-- Auto Farm機能
+AutoFarmBtn.MouseButton1Click:Connect(function()
+    autoFarmEnabled = not autoFarmEnabled
+    AutoFarmBtn.BackgroundColor3 = autoFarmEnabled and Color3.fromRGB(30, 150, 100) or Color3.fromRGB(40, 40, 40)
+    AutoFarmBtn.Text = "Auto Farm All: " .. (autoFarmEnabled and "ON" or "OFF")
+end)
+
+-- 速度調整
+SpeedUpBtn.MouseButton1Click:Connect(function()
+    clickSpeed = math.max(0.01, clickSpeed - 0.05)
+    SpeedLabel.Text = "Click Speed: " .. string.format("%.2f", clickSpeed) .. "s"
+end)
+
+SpeedDownBtn.MouseButton1Click:Connect(function()
+    clickSpeed = math.min(1, clickSpeed + 0.05)
+    SpeedLabel.Text = "Click Speed: " .. string.format("%.2f", clickSpeed) .. "s"
+end)
+
+-- メインループ
+spawn(function()
+    while wait(clickSpeed) do
+        if autoClickEnabled and ReplicatedStorage:FindFirstChild("Events") then
+            local success = pcall(function()
+                ReplicatedStorage.Events.ClickMoney:FireServer()
+                clickCount = clickCount + 1
+            end)
+            if success then
+                StatsLabel.Text = "Clicks: " .. clickCount .. "\nStatus: Active"
+            end
+        elseif not autoClickEnabled then
+            StatsLabel.Text = "Clicks: " .. clickCount .. "\nStatus: Idle"
+        end
+    end
+end)
+
+-- ホバーエフェクト
+local buttons = {AutoClickBtn, AutoFarmBtn, SpeedUpBtn, SpeedDownBtn}
+for _, btn in pairs(buttons) do
+    btn.MouseEnter:Connect(function()
+        btn:TweenSize(UDim2.new(0, 285, 0, 48), "Out", "Quad", 0.2, true)
+    end)
+    btn.MouseLeave:Connect(function()
+        btn:TweenSize(UDim2.new(0, 280, 0, 45), "Out", "Quad", 0.2, true)
+    end)
+end
+
+print("Auto Clicker GUI loaded successfully!")
