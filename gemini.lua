@@ -1,6 +1,6 @@
 -- LocalScript
--- Mobile PC Emulator: Syu_hub Ultimate Edition
--- Aesthetics: Cyberpunk, Neon, Material Ripples, Elastic Motions
+-- Mobile PC Emulator: Syu_hub WebADB Concept Edition
+-- Features: Physical Keyboard Detection (USB/BT), Draggable WASD, Cyberpunk UI
 
 local player = game.Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
@@ -8,31 +8,30 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
--- PCでのテスト用 (タッチがないデバイスでも動作させる場合はここを調整)
-if not UIS.TouchEnabled and not RunService:IsStudio() then
-	-- return -- 実機でPCを除外したい場合はコメントアウトを外す
-end
+-- モバイル判定 (PCデバッグ用コメントアウト)
+-- if not UIS.TouchEnabled and not RunService:IsStudio() then return end
 
 --------------------------------------------------------------------------------
--- [Setting] デザイン・設定定数
+-- [Setting] テーマ設定 (Cyberpunk Neon)
 --------------------------------------------------------------------------------
 local THEME = {
-	MainColor = Color3.fromRGB(10, 10, 15),       -- 深いダークブルー背景
-	AccentColor = Color3.fromRGB(0, 255, 255),    -- シアン（ネオン）
-	AccentColor2 = Color3.fromRGB(255, 0, 150),   -- マゼンタ（グラデーション用）
-	TextColor = Color3.fromRGB(255, 255, 255),
-	ButtonColor = Color3.fromRGB(30, 30, 40),
+	MainColor = Color3.fromRGB(8, 8, 12),       -- Deep Void
+	AccentColor = Color3.fromRGB(0, 255, 180),  -- Cyber Mint
+	AccentColor2 = Color3.fromRGB(180, 0, 255), -- Neon Purple
+	TextColor = Color3.fromRGB(240, 240, 255),
 	RippleColor = Color3.fromRGB(255, 255, 255),
+	HideTransparency = 0.9, -- 物理キー操作時の透明度
 }
 
 local WASD_SCALE = 1.0
 local isWasdVisible = false
+local usingPhysicalKeyboard = false -- 物理キーボード使用フラグ
 
--- キー入力状態管理
-local keysDown = { W = false, A = false, S = false, D = false, Space = false }
+-- 入力管理
+local keysDown = { W = false, A = false, S = false, D = false }
 
 --------------------------------------------------------------------------------
--- [Utility] アニメーション関数群 (Core of Coolness)
+-- [Utility] アニメーションエンジン
 --------------------------------------------------------------------------------
 
 -- 1. リップルエフェクト (波紋)
@@ -43,66 +42,32 @@ local function spawnRipple(button, inputPosition)
 		c.Size = UDim2.new(1,0,1,0)
 		c.BackgroundTransparency = 1
 		c.ClipsDescendants = true
-		c.ZIndex = 10 -- 文字より下、背景より上
+		c.ZIndex = 10
 		c.Parent = button
 	end
 	
-	local container = button.RippleContainer
-	
 	local ripple = Instance.new("Frame")
 	ripple.BackgroundColor3 = THEME.RippleColor
-	ripple.BackgroundTransparency = 0.6
+	ripple.BackgroundTransparency = 0.7
 	ripple.BorderSizePixel = 0
 	ripple.AnchorPoint = Vector2.new(0.5, 0.5)
 	
-	-- マウス位置の計算 (絶対座標 -> 相対座標)
 	local x = inputPosition.X - button.AbsolutePosition.X
 	local y = inputPosition.Y - button.AbsolutePosition.Y
 	ripple.Position = UDim2.new(0, x, 0, y)
-	ripple.Size = UDim2.new(0, 0, 0, 0)
+	ripple.Size = UDim2.new(0,0,0,0)
+	Instance.new("UICorner", ripple).CornerRadius = UDim.new(1,0)
+	ripple.Parent = button.RippleContainer
 	
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(1, 0)
-	corner.Parent = ripple
-	ripple.Parent = container
+	local targetSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 3
+	local tInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	
-	-- 広がって消える
-	local targetSize = math.max(button.AbsoluteSize.X, button.AbsoluteSize.Y) * 2.5
-	
-	local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local tween = TweenService:Create(ripple, tweenInfo, {
-		Size = UDim2.new(0, targetSize, 0, targetSize),
-		BackgroundTransparency = 1
-	})
-	
-	tween:Play()
-	tween.Completed:Connect(function()
-		ripple:Destroy()
-	end)
+	TweenService:Create(ripple, tInfo, {Size = UDim2.new(0, targetSize, 0, targetSize), BackgroundTransparency = 1}):Play()
+	task.delay(0.5, function() ripple:Destroy() end)
 end
 
--- 2. ボタンの押下アニメーション (スケール & 明度)
-local function animateButtonPress(btn, isDown, inputObj)
-	local scale = isDown and 0.92 or 1.0
-	local tInfo = TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-	TweenService:Create(btn, tInfo, {Size = btn:GetAttribute("OriginalSize") or btn.Size}):Play() -- 簡易実装のためscaleはUIScale推奨だが今回はシンプルに
-	
-	-- Scaleの代わりにUIScaleを使うとレイアウトが崩れにくい
-	local uiScale = btn:FindFirstChild("UIScale")
-	if not uiScale then
-		uiScale = Instance.new("UIScale")
-		uiScale.Parent = btn
-	end
-	
-	TweenService:Create(uiScale, tInfo, {Scale = scale}):Play()
-	
-	if isDown and inputObj then
-		spawnRipple(btn, inputObj.Position)
-	end
-end
-
--- 3. グラデーション回転アニメーション (ネオン枠用)
-local function applyRotatingRainbow(stroke)
+-- 2. 生きたネオンボーダー (回転)
+local function applyLivingNeon(stroke)
 	local gradient = Instance.new("UIGradient")
 	gradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, THEME.AccentColor),
@@ -114,16 +79,19 @@ local function applyRotatingRainbow(stroke)
 	local rotation = 0
 	RunService.Heartbeat:Connect(function(dt)
 		if stroke.Parent and stroke.Parent.Visible then
-			rotation = (rotation + (dt * 60)) % 360 -- 毎秒60度回転
+			rotation = (rotation + (dt * 90)) % 360
 			gradient.Rotation = rotation
 		end
 	end)
 end
 
 --------------------------------------------------------------------------------
--- [System] キー入力処理
+-- [System] 入力シミュレーション & USBキーボード検知
 --------------------------------------------------------------------------------
 local function simulateKey(keyCodeName, down)
+	-- 物理キーボードを使っている場合はシミュレートしない（競合回避）
+	if usingPhysicalKeyboard then return end
+
 	local keyCode = Enum.KeyCode[keyCodeName]
 	if down then
 		if not keysDown[keyCodeName] then
@@ -139,15 +107,37 @@ local function simulateKey(keyCodeName, down)
 end
 
 --------------------------------------------------------------------------------
--- [UI Construction] GUI全体
+-- [UI Construction] メイン構築
 --------------------------------------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SyuHub_Ultimate"
+screenGui.Name = "SyuHub_WebADB_Concept"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
+local wasdContainer = Instance.new("Frame") -- 先に宣言
+
 --------------------------------------------------------------------------------
--- [Animation] Intro Sequence (Glitch & Typewriter)
+-- [System] Auto-Hide Logic (USB/Keyboard Detection)
+--------------------------------------------------------------------------------
+-- 物理キーボードの入力を検知してUIを薄くする
+UIS.InputBegan:Connect(function(input, gameProcessed)
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		usingPhysicalKeyboard = true
+		-- キーボード操作中はWASD UIを邪魔にならないように薄くする
+		if isWasdVisible and wasdContainer.Visible then
+			TweenService:Create(wasdContainer, TweenInfo.new(0.3), {GroupTransparency = THEME.HideTransparency}):Play()
+		end
+	elseif input.UserInputType == Enum.UserInputType.Touch then
+		usingPhysicalKeyboard = false
+		-- タッチ操作に戻ったら濃くする
+		if isWasdVisible and wasdContainer.Visible then
+			TweenService:Create(wasdContainer, TweenInfo.new(0.3), {GroupTransparency = 0}):Play()
+		end
+	end
+end)
+
+--------------------------------------------------------------------------------
+-- [Intro] Glitch Boot Sequence
 --------------------------------------------------------------------------------
 local function playIntro(onComplete)
 	local frame = Instance.new("Frame")
@@ -160,57 +150,54 @@ local function playIntro(onComplete)
 	text.Size = UDim2.new(1,0,0,100)
 	text.Position = UDim2.new(0,0,0.45,0)
 	text.BackgroundTransparency = 1
-	text.Text = ""
+	text.Text = "USB LINKING..." -- 演出用テキスト
 	text.TextColor3 = THEME.AccentColor
-	text.Font = Enum.Font.FredokaOne -- 少しポップかつ太いフォント
-	text.TextSize = 60
+	text.Font = Enum.Font.Code
+	text.TextSize = 40
 	text.Parent = frame
 	
-	-- 1. Typewriter Effect
-	local content = "Syu_hub"
-	for i = 1, #content do
-		text.Text = string.sub(content, 1, i)
-		-- タイピングごとのランダムピッチ音などを入れるとさらに良し
+	-- 演出: テキスト変化
+	task.wait(0.5)
+	text.Text = "DEVICE_CONNECTED"
+	text.TextColor3 = THEME.AccentColor2
+	
+	-- グリッチ演出
+	for i = 1, 8 do
+		text.Position = UDim2.new(0, math.random(-4,4), 0.45, math.random(-4,4))
+		text.TextTransparency = math.random(0, 5)/10
 		task.wait(0.05)
 	end
-	
-	-- 2. Glitch Shake
-	local originalPos = text.Position
-	for i = 1, 10 do
-		local offsetX = math.random(-5, 5)
-		local offsetY = math.random(-5, 5)
-		text.Position = originalPos + UDim2.new(0, offsetX, 0, offsetY)
-		text.TextColor3 = (i % 2 == 0) and THEME.AccentColor or THEME.AccentColor2
-		task.wait(0.03)
-	end
-	text.Position = originalPos
+	text.Position = UDim2.new(0,0,0.45,0)
+	text.Text = "Syu_hub // ACTIVE"
+	text.TextTransparency = 0
 	text.TextColor3 = THEME.AccentColor
 	
-	-- 3. Line Expand & Fade Out
-	local line = Instance.new("Frame")
-	line.Size = UDim2.new(0, 0, 0, 4)
-	line.Position = UDim2.new(0.5, 0, 0.5, 40)
-	line.BackgroundColor3 = THEME.AccentColor2
-	line.BorderSizePixel = 0
-	line.AnchorPoint = Vector2.new(0.5, 0.5)
-	line.Parent = frame
+	-- スリットアニメーションで開く
+	local top = Instance.new("Frame", frame)
+	top.Size = UDim2.new(1,0,0.5,0)
+	top.BackgroundColor3 = Color3.new(0,0,0)
+	top.BorderSizePixel = 0
 	
-	TweenService:Create(line, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Size = UDim2.new(0.8, 0, 0, 4)}):Play()
-	task.wait(0.4)
+	local bottom = Instance.new("Frame", frame)
+	bottom.Size = UDim2.new(1,0,0.5,0)
+	bottom.Position = UDim2.new(0,0,0.5,0)
+	bottom.BackgroundColor3 = Color3.new(0,0,0)
+	bottom.BorderSizePixel = 0
 	
-	TweenService:Create(text, TweenInfo.new(0.5), {TextTransparency = 1, Position = originalPos - UDim2.new(0,0,0.1,0)}):Play()
-	TweenService:Create(line, TweenInfo.new(0.3), {Size = UDim2.new(0,0,0,2), BackgroundTransparency = 1}):Play()
-	TweenService:Create(frame, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+	text:Destroy()
 	
-	task.wait(0.5)
+	local tInfo = TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out)
+	TweenService:Create(top, tInfo, {Position = UDim2.new(0,0,-0.5,0)}):Play()
+	TweenService:Create(bottom, tInfo, {Position = UDim2.new(0,0,1,0)}):Play()
+	
+	task.wait(0.6)
 	frame:Destroy()
 	if onComplete then onComplete() end
 end
 
 --------------------------------------------------------------------------------
--- [WASD Overlay] ドラッグ＆リサイズ＆ネオン
+-- [WASD] ドラッグ & リサイズ & スマート表示
 --------------------------------------------------------------------------------
-local wasdContainer = Instance.new("Frame")
 wasdContainer.Name = "WASD_Overlay"
 wasdContainer.Size = UDim2.new(0, 150, 0, 150)
 wasdContainer.Position = UDim2.new(0.1, 0, 0.6, 0)
@@ -218,32 +205,41 @@ wasdContainer.BackgroundTransparency = 1
 wasdContainer.Visible = false
 wasdContainer.Parent = screenGui
 
--- ドラッグロジック
+-- 全体の透明度制御用（GroupTransparency用にはCanvasGroupが必要だが、軽量化のためFrameで代用し、子要素をループで制御する関数を作るか、単にCanvasGroupにする）
+-- ここでは簡易的にCanvasGroupに変更して一括透明度操作を可能にする
+local newContainer = Instance.new("CanvasGroup")
+newContainer.Name = wasdContainer.Name
+newContainer.Size = wasdContainer.Size
+newContainer.Position = wasdContainer.Position
+newContainer.BackgroundTransparency = 1
+newContainer.Visible = false
+newContainer.Parent = screenGui
+wasdContainer:Destroy()
+wasdContainer = newContainer
+
+-- ドラッグ機能
 local dragging, dragInput, dragStart, startPos
-local function makeDraggable(frame)
-	frame.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = frame.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then dragging = false end
-			end)
-		end
-	end)
-	frame.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
-	UIS.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-		end
-	end)
-end
-makeDraggable(wasdContainer)
+wasdContainer.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = wasdContainer.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then dragging = false end
+		end)
+	end
+end)
+wasdContainer.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - dragStart
+		wasdContainer.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+end)
 
 local function createWasdButtons()
 	wasdContainer:ClearAllChildren()
@@ -257,50 +253,45 @@ local function createWasdButtons()
 		btn.Position = UDim2.new(0, xPos, 0, yPos)
 		btn.Text = text
 		btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		btn.BackgroundTransparency = 0.4
+		btn.BackgroundTransparency = 0.3
 		btn.TextColor3 = THEME.AccentColor
 		btn.TextSize = 24 * WASD_SCALE
-		btn.Font = Enum.Font.GothamBold
+		btn.Font = Enum.Font.GothamBlack
 		btn.Parent = wasdContainer
 		
-		-- 装飾: ネオンストローク
+		-- ネオン枠
 		local stroke = Instance.new("UIStroke")
 		stroke.Thickness = 2
 		stroke.Color = THEME.AccentColor
-		stroke.Transparency = 0.5
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Transparency = 0.4
 		stroke.Parent = btn
 		
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = btn
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
 		
-		-- 入力イベント
-		btn.MouseButton1Down:Connect(function(x, y) 
+		-- タッチ処理
+		local function press(input)
+			if usingPhysicalKeyboard then return end -- 物理キー優先
 			simulateKey(key, true)
-			animateButtonPress(btn, true) -- スケールダウン
 			TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentColor, TextColor3 = Color3.new(0,0,0)}):Play()
-		end)
-		
-		btn.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch then
-				simulateKey(key, true)
-				animateButtonPress(btn, true, input)
-				TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = THEME.AccentColor, TextColor3 = Color3.new(0,0,0)}):Play()
-			end
-		end)
-
-		local function release()
-			simulateKey(key, false)
-			animateButtonPress(btn, false) -- 元に戻る
-			TweenService:Create(btn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(0,0,0), TextColor3 = THEME.AccentColor}):Play()
+			spawnRipple(btn, input.Position)
 		end
 		
-		btn.MouseButton1Up:Connect(release)
-		btn.MouseLeave:Connect(release)
-		btn.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch then release() end
+		local function release()
+			simulateKey(key, false)
+			TweenService:Create(btn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(0,0,0), TextColor3 = THEME.AccentColor}):Play()
+		end
+
+		btn.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				press(input)
+			end
 		end)
+		btn.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				release()
+			end
+		end)
+		btn.MouseLeave:Connect(release)
 	end
 
 	local midX = baseSize + padding
@@ -312,33 +303,26 @@ end
 createWasdButtons()
 
 --------------------------------------------------------------------------------
--- [Main UI] Hub Control Panel
+-- [Control Panel] メインUI
 --------------------------------------------------------------------------------
 local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainHub"
-mainFrame.Size = UDim2.new(0, 320, 0, 240)
-mainFrame.Position = UDim2.new(0.5, -160, 0.5, -120)
+mainFrame.Size = UDim2.new(0, 340, 0, 250)
+mainFrame.Position = UDim2.new(0.5, -170, 0.5, -125)
 mainFrame.BackgroundColor3 = THEME.MainColor
 mainFrame.BackgroundTransparency = 0.1
 mainFrame.Visible = false
 mainFrame.Parent = screenGui
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 16)
-corner.Parent = mainFrame
-
--- 回転ネオンボーダー
-local mainStroke = Instance.new("UIStroke")
-mainStroke.Thickness = 3
-mainStroke.Color = Color3.new(1,1,1) -- Gradientで上書きされる
-mainStroke.Parent = mainFrame
-applyRotatingRainbow(mainStroke)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Thickness = 2
+applyLivingNeon(mainStroke)
 
 -- タイトル
 local title = Instance.new("TextLabel")
-title.Text = "SYU_HUB // CONTROLS"
+title.Text = "SYU_HUB // USB MODE"
 title.Font = Enum.Font.GothamBlack
-title.TextSize = 20
+title.TextSize = 22
 title.TextColor3 = THEME.AccentColor
 title.Size = UDim2.new(1, -20, 0, 40)
 title.Position = UDim2.new(0, 20, 0, 10)
@@ -346,221 +330,98 @@ title.BackgroundTransparency = 1
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = mainFrame
 
--- スムーズトグルスイッチ作成関数
-local function createToggle(text, parentFrame, position, callback)
-	local container = Instance.new("Frame")
-	container.Size = UDim2.new(1, -40, 0, 50)
-	container.Position = position
-	container.BackgroundTransparency = 1
-	container.Parent = parentFrame
-	
-	local label = Instance.new("TextLabel")
-	label.Text = text
-	label.Font = Enum.Font.GothamBold
-	label.TextSize = 16
-	label.TextColor3 = Color3.fromRGB(200, 200, 200)
-	label.Size = UDim2.new(0.6, 0, 1, 0)
-	label.BackgroundTransparency = 1
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.Parent = container
-	
-	local switchBg = Instance.new("TextButton") -- クリック判定用
-	switchBg.Text = ""
-	switchBg.Size = UDim2.new(0, 60, 0, 30)
-	switchBg.Position = UDim2.new(1, -60, 0.5, -15)
-	switchBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-	switchBg.AutoButtonColor = false
-	Instance.new("UICorner", switchBg).CornerRadius = UDim.new(1, 0)
-	switchBg.Parent = container
-	
-	local knob = Instance.new("Frame")
-	knob.Size = UDim2.new(0, 24, 0, 24)
-	knob.Position = UDim2.new(0, 3, 0.5, -12)
-	knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-	knob.Parent = switchBg
-	
-	local isOn = false
-	
-	switchBg.MouseButton1Click:Connect(function()
-		isOn = not isOn
-		
-		-- アニメーション
-		local targetPos = isOn and UDim2.new(1, -27, 0.5, -12) or UDim2.new(0, 3, 0.5, -12)
-		local targetColor = isOn and THEME.AccentColor or Color3.fromRGB(50, 50, 50)
-		local knobColor = isOn and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(180, 180, 180)
-		
-		TweenService:Create(knob, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = targetPos, BackgroundColor3 = knobColor}):Play()
-		TweenService:Create(switchBg, TweenInfo.new(0.3), {BackgroundColor3 = targetColor}):Play()
-		
-		-- リップル
-		spawnRipple(switchBg, switchBg.AbsolutePosition + Vector2.new(30, 15))
-		
-		callback(isOn)
-	end)
-end
+-- 設定UI: WASD トグル
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(1, -40, 0, 50)
+toggleBtn.Position = UDim2.new(0, 20, 0, 60)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+toggleBtn.Text = "WASD Overlay: OFF"
+toggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 18
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
+toggleBtn.Parent = mainFrame
 
--- トグル配置
-createToggle("WASD Overlay", mainFrame, UDim2.new(0, 20, 0, 60), function(state)
-	isWasdVisible = state
-	wasdContainer.Visible = state
+toggleBtn.MouseButton1Click:Connect(function()
+	isWasdVisible = not isWasdVisible
+	wasdContainer.Visible = isWasdVisible
 	
-	if state then
-		-- 出現アニメーション (ポップアップ)
+	if isWasdVisible then
+		toggleBtn.Text = "WASD Overlay: ON"
+		toggleBtn.TextColor3 = THEME.AccentColor
+		TweenService:Create(toggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(40, 40, 50)}):Play()
+		
+		-- Pop animation
 		wasdContainer.Size = UDim2.new(0,0,0,0)
 		TweenService:Create(wasdContainer, TweenInfo.new(0.5, Enum.EasingStyle.Elastic), {
 			Size = UDim2.new(0, (55*WASD_SCALE*3)+(8*WASD_SCALE*2), 0, (55*WASD_SCALE*2)+(8*WASD_SCALE))
 		}):Play()
+	else
+		toggleBtn.Text = "WASD Overlay: OFF"
+		toggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		TweenService:Create(toggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(30, 30, 40)}):Play()
 	end
 end)
 
--- サイズ調整セクション
-local sizeLabel = Instance.new("TextLabel")
-sizeLabel.Text = "Size Scale"
-sizeLabel.Font = Enum.Font.GothamBold
-sizeLabel.TextSize = 14
-sizeLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-sizeLabel.Size = UDim2.new(1, -40, 0, 20)
-sizeLabel.Position = UDim2.new(0, 20, 0, 130)
-sizeLabel.BackgroundTransparency = 1
-sizeLabel.TextXAlignment = Enum.TextXAlignment.Left
-sizeLabel.Parent = mainFrame
+-- 情報テキスト
+local infoLabel = Instance.new("TextLabel")
+infoLabel.Size = UDim2.new(1, -40, 0, 40)
+infoLabel.Position = UDim2.new(0, 20, 0, 120)
+infoLabel.BackgroundTransparency = 1
+infoLabel.Text = "Connect USB Keyboard to Auto-Hide"
+infoLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+infoLabel.TextSize = 14
+infoLabel.Font = Enum.Font.Gotham
+infoLabel.Parent = mainFrame
 
-local function createCircleBtn(text, pos, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0, 40, 0, 40)
-	btn.Position = pos
-	btn.Text = text
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 20
-	btn.TextColor3 = THEME.TextColor
-	btn.BackgroundColor3 = THEME.ButtonColor
-	btn.AutoButtonColor = false
-	Instance.new("UICorner", btn).CornerRadius = UDim.new(1,0)
-	Instance.new("UIStroke", btn).Color = Color3.fromRGB(60,60,60)
-	btn.Parent = mainFrame
-	
-	btn.MouseButton1Down:Connect(function() animateButtonPress(btn, true) end)
-	btn.MouseButton1Up:Connect(function() animateButtonPress(btn, false) callback() end)
-	btn.MouseLeave:Connect(function() animateButtonPress(btn, false) end)
-end
-
-createCircleBtn("-", UDim2.new(0, 20, 0, 160), function()
-	WASD_SCALE = math.clamp(WASD_SCALE - 0.1, 0.5, 2.0)
-	createWasdButtons()
-end)
-
-createCircleBtn("+", UDim2.new(0, 70, 0, 160), function()
-	WASD_SCALE = math.clamp(WASD_SCALE + 0.1, 0.5, 2.0)
-	createWasdButtons()
-end)
-
---------------------------------------------------------------------------------
--- [Minimize Button] かっこいい開閉
---------------------------------------------------------------------------------
-local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 50, 0, 50)
-minimizeBtn.Position = UDim2.new(0, 20, 0.5, -25)
-minimizeBtn.Text = ""
-minimizeBtn.BackgroundColor3 = THEME.MainColor
-minimizeBtn.Visible = false
-minimizeBtn.Parent = screenGui
-
-local minCorner = Instance.new("UICorner")
-minCorner.CornerRadius = UDim.new(1, 0)
-minCorner.Parent = minimizeBtn
-
-local minStroke = Instance.new("UIStroke")
+-- 最小化ボタン
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 50, 0, 50)
+minBtn.Position = UDim2.new(0, 20, 0.5, -25)
+minBtn.BackgroundColor3 = THEME.MainColor
+minBtn.Text = "≡"
+minBtn.TextColor3 = THEME.AccentColor
+minBtn.TextSize = 30
+minBtn.Font = Enum.Font.GothamBold
+minBtn.Visible = false
+minBtn.Parent = screenGui
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(1,0)
+local minStroke = Instance.new("UIStroke", minBtn)
 minStroke.Color = THEME.AccentColor
 minStroke.Thickness = 2
-minStroke.Parent = minimizeBtn
-
--- アイコン (ハンバーガーメニュー風)
-local iconImg = Instance.new("ImageLabel")
-iconImg.Size = UDim2.new(0.6, 0, 0.6, 0)
-iconImg.Position = UDim2.new(0.2, 0, 0.2, 0)
-iconImg.BackgroundTransparency = 1
-iconImg.Image = "rbxassetid://6034818379" -- Menu icon
-iconImg.ImageColor3 = THEME.AccentColor
-iconImg.Parent = minimizeBtn
 
 local isMinimized = false
-
-local function toggleUI()
-	isMinimized = not isMinimized
-	
-	if not isMinimized then
-		-- OPEN: スピンしながら拡大して登場
-		mainFrame.Visible = true
-		mainFrame.Size = UDim2.new(0,0,0,0)
-		mainFrame.Position = minimizeBtn.Position
-		mainFrame.Rotation = -90
-		
-		local tInfo = TweenInfo.new(0.7, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out)
-		TweenService:Create(mainFrame, tInfo, {
-			Size = UDim2.new(0, 320, 0, 240),
-			Position = UDim2.new(0.5, -160, 0.5, -120),
-			Rotation = 0
-		}):Play()
-		
-		-- ボタンは消すか目立たなくする
-		TweenService:Create(minimizeBtn, TweenInfo.new(0.3), {BackgroundTransparency = 1, ImageTransparency = 1}):Play()
-		TweenService:Create(minStroke, TweenInfo.new(0.3), {Transparency = 1}):Play()
-		TweenService:Create(iconImg, TweenInfo.new(0.3), {ImageTransparency = 1}):Play()
-	else
-		-- CLOSE: 閉じるボタンが押された時の挙動 (今回は外部ボタンがないので、メインフレーム外クリック等で実装も可だが、ここでは単純化のためトグルボタン自体を常に表示させておく設計に変更も可能。
-		-- 今回は「最小化ボタン」をクリックして開閉するスタイルにするため、
-		-- 開いたときも最小化ボタンは薄く残し、押せるようにします。
-	end
-end
-
--- ボタン状態のリセット用修正: 開いているときもボタンを押せるようにする
-minimizeBtn.MouseButton1Click:Connect(function()
+minBtn.MouseButton1Click:Connect(function()
 	if not mainFrame.Visible then
 		-- OPEN
 		mainFrame.Visible = true
 		mainFrame.Size = UDim2.new(0,0,0,0)
-		mainFrame.Position = minimizeBtn.Position
-		mainFrame.Rotation = -45
-		
-		-- Material Ripple
-		spawnRipple(minimizeBtn, minimizeBtn.AbsolutePosition + Vector2.new(25,25))
+		mainFrame.Position = minBtn.Position
 		
 		TweenService:Create(mainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-			Size = UDim2.new(0, 320, 0, 240),
-			Position = UDim2.new(0.5, -160, 0.5, -120),
-			Rotation = 0
+			Size = UDim2.new(0, 340, 0, 250),
+			Position = UDim2.new(0.5, -170, 0.5, -125)
 		}):Play()
-		
-		-- アイコンを×に変えるなど
-		iconImg.Image = "rbxassetid://6031094678" -- X mark
 	else
 		-- CLOSE
-		spawnRipple(minimizeBtn, minimizeBtn.AbsolutePosition + Vector2.new(25,25))
-		
-		local tween = TweenService:Create(mainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+		local t = TweenService:Create(mainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
 			Size = UDim2.new(0,0,0,0),
-			Position = minimizeBtn.Position,
-			Rotation = 45
+			Position = minBtn.Position
 		})
-		tween:Play()
-		tween.Completed:Connect(function()
-			mainFrame.Visible = false
-		end)
-		
-		iconImg.Image = "rbxassetid://6034818379" -- Menu icon
+		t:Play()
+		t.Completed:Connect(function() mainFrame.Visible = false end)
 	end
 end)
 
 --------------------------------------------------------------------------------
--- Start Up
+-- Start
 --------------------------------------------------------------------------------
 playIntro(function()
-	minimizeBtn.Visible = true
-	-- 初期展開
+	minBtn.Visible = true
 	mainFrame.Visible = true
+	-- 初期オープンアニメーション
 	mainFrame.Size = UDim2.new(0,0,0,0)
 	TweenService:Create(mainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Elastic), {
-		Size = UDim2.new(0, 320, 0, 240)
+		Size = UDim2.new(0, 340, 0, 250)
 	}):Play()
 end)
